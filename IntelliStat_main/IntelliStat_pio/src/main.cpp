@@ -20,7 +20,7 @@
 
 // Define DHT Sensor
 #define DHTTYPE DHT11 // DHT 11
-#define DHTPIN 4
+#define DHTPIN 2
 DHT_Unified dht(DHTPIN, DHTTYPE);
 uint32_t delayMS;
 
@@ -37,6 +37,15 @@ const char *WIFI_PASS = "andromeda";
 
 // Define global variables
 unsigned long timer;
+float MQ2_val;
+
+//Define pins
+//const int DHT11_s = 2;
+const int MQ2_a0 = 4;
+const int MQ2_d0 = 16;
+const int LED_gasWarn = 5;
+const int LED_humidLim = 18;
+
 
 // Define Ubidots object
 Ubidots ubidots(UBIDOTS_TOKEN);
@@ -59,7 +68,7 @@ void setup() {
   Serial.begin(115200);
   
   // Ubidots Setup
-  // ubidots.setDebug(true);  // uncomment this to make debug messages available
+  ubidots.setDebug(true);  // uncomment this to make debug messages available
   ubidots.connectToWifi(WIFI_SSID, WIFI_PASS);
   ubidots.setCallback(callback);
   ubidots.setup();
@@ -73,7 +82,10 @@ void setup() {
   sensor_t sensor;
 
   // Pin Setup
-  pinMode(18, OUTPUT);
+  pinMode(MQ2_a0, INPUT);
+  pinMode(MQ2_d0, INPUT);
+  pinMode(LED_gasWarn, OUTPUT);
+  pinMode(LED_humidLim, OUTPUT);
 
 }
 
@@ -95,7 +107,8 @@ void loop() {
   delay(1000);
   digitalWrite(18, 0);
   delay(1000);
-  // ubidots loop
+
+  // Ubidots Loop
   if (!ubidots.connected()) {
     ubidots.reconnect();
   }
@@ -109,4 +122,22 @@ void loop() {
     timer = millis();
   }
   ubidots.loop();
+  
+  // MQ2 Sensor Readings
+  MQ2_val = analogRead(MQ2_a0);
+  Serial.print("MQ2 Value: ");
+  Serial.println(MQ2_val);
+  delay(1000);
+  // Gas Warning LED
+  if (MQ2_val > 1000) {
+    digitalWrite(LED_gasWarn, 1);
+  }
+  else {
+    digitalWrite(LED_gasWarn, 0);
+  }
+
+  // Light Sensor Readings
+
+  // PIR Sensor Readings
+
 }

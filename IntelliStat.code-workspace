@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "IntelliStat_pio",
+			"path": "IntelliStat_main/IntelliStat_pio"
+		}
+	],
+	"settings": {}
+}

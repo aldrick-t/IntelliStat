@@ -36,6 +36,7 @@ const char *UBIDOTS_TOKEN = "BBFF-qEjEkvY4IIQlR6npGuDcr7eYIx3aOx";
 const char *DEVICE_LABEL = "esp32";   // Device label to which data will be published
 const char *VARIABLE_LABEL = "humid"; // Variable label to which data will be published
 const char *VARIABLE_LABEL_TWO = "temp";
+const char *VARIABLE_LABEL_THREE = "MQ2";
 const int PUBLISH_FREQUENCY = 5000; // Update rate in milliseconds
 // WiFi
 const char *WIFI_SSID = "Andromeda";
@@ -71,12 +72,6 @@ void setup() {
     // Serial Setup
     Serial.begin(115200);
     
-    // Ubidots Setup
-    // ubidots.setDebug(true);  // uncomment this to make debug messages available
-    // ubidots.connectToWifi(WIFI_SSID, WIFI_PASS);
-    // ubidots.setCallback(callback);
-    // ubidots.setup();
-    // ubidots.reconnect();
     
     // Time Setup
     timer = millis();
@@ -123,8 +118,8 @@ void setup() {
         delay(250);
         if (WiFi.status() == WL_NO_SSID_AVAIL && i >= 20) {
             Serial.println("SSID not available!");
-            Serial.println("Restarting...");
-            ESP.restart();
+            Serial.println("To retry connection, restart device.");
+            Serial.println("Continuing without WiFi...");
         }
         if (WiFi.status() == WL_CONNECT_FAILED) {
             Serial.println("Connection failed!");
@@ -132,8 +127,25 @@ void setup() {
             ESP.restart();
         }
     }
-    Serial.println("\nConnected to WiFi Network: " + WiFi.SSID());
-    Serial.println("Local ESP32 IP Address: " + WiFi.localIP().toString());
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nConnected to WiFi Network: " + WiFi.SSID());
+        Serial.println("Local ESP32 IP Address: " + WiFi.localIP().toString());
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(1000);
+        digitalWrite(LED_BUILTIN, LOW);
+
+        // Ubidots Setup
+        //ubidots.setDebug(true);  // uncomment this to make debug messages available
+        ubidots.connectToWifi(WIFI_SSID, WIFI_PASS);
+        ubidots.setCallback(callback);
+        ubidots.setup();
+        ubidots.reconnect();
+    } else {
+        Serial.println("No WiFi connection, continuing offline without DB.");
+        
+    }
+
 }
 
 void loop() {
@@ -157,25 +169,26 @@ void loop() {
         digitalWrite(LED_humidLim, 0);
     }
 
-    // Ubidots Loop
-    // if (!ubidots.connected()) {
-    //   ubidots.reconnect();
-    // }
-    // if ((millis() - timer) > PUBLISH_FREQUENCY) { // triggers the routine every 5 second
-    //   float value = event.relative_humidity;
-    //   dht.temperature().getEvent(&event);
-    //   float val = event.temperature;
-    //   ubidots.add(VARIABLE_LABEL, value); // Insert your variable Labels and the value to be sent
-    //   ubidots.add(VARIABLE_LABEL_TWO, val);
-    //   ubidots.publish(DEVICE_LABEL);
-    //   timer = millis();
-    // }
-    // ubidots.loop();
+    //Ubidots Loop
+    if (!ubidots.connected()) {
+      ubidots.reconnect();
+    }
+    if ((millis() - timer) > PUBLISH_FREQUENCY) { // triggers the routine every 5 second
+        float value = event.relative_humidity;
+        dht.temperature().getEvent(&event);
+        float val = event.temperature;
+        ubidots.add(VARIABLE_LABEL, value); // Insert your variable Labels and the value to be sent
+        ubidots.add(VARIABLE_LABEL_TWO, val);
+        ubidots.add(VARIABLE_LABEL_THREE, MQ2_read);
+        ubidots.publish(DEVICE_LABEL);
+        timer = millis();
+    }
+    ubidots.loop();
     
     // MQ2 Sensor Readings
     MQ2_read = analogRead(MQ2_a0);
     Serial.print("MQ2 Value: ");
-    Serial.println(MQ2_read);
+    Serial.println(MQ2_read); 
     delay(1000);
 
     // Gas Warning LED

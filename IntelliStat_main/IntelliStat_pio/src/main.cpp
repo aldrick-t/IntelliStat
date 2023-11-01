@@ -29,6 +29,7 @@
 #define DHTPIN 15
 DHT_Unified dht(DHTPIN, DHTTYPE);
 uint32_t delayMS;
+sensors_event_t event;
 
 // Define config constants
 // Ubidots
@@ -120,11 +121,7 @@ void setup() {
             Serial.println("SSID not available!");
             Serial.println("To retry connection, restart device.");
             Serial.println("Continuing without WiFi...");
-        }
-        if (WiFi.status() == WL_CONNECT_FAILED) {
-            Serial.println("Connection failed!");
-            Serial.println("Restarting...");
-            ESP.restart();
+            break;
         }
     }
     
@@ -143,14 +140,40 @@ void setup() {
         ubidots.reconnect();
     } else {
         Serial.println("No WiFi connection, continuing offline without DB.");
+
         
     }
 
 }
 
+void LED_Busy() {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(250);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(250);
+}
+
+void Ubidots_loop() {
+    //Ubidots Loop
+    if (!ubidots.connected()) {
+        LED_Busy();
+        ubidots.reconnect();
+    }
+    if ((millis() - timer) > PUBLISH_FREQUENCY) { // triggers the routine every 5 second
+        float value = event.relative_humidity;
+        dht.temperature().getEvent(&event);
+        float val = event.temperature;
+        ubidots.add(VARIABLE_LABEL, value); // Insert your variable Labels and the value to be sent
+        ubidots.add(VARIABLE_LABEL_TWO, val);
+        ubidots.add(VARIABLE_LABEL_THREE, MQ2_read);
+        ubidots.publish(DEVICE_LABEL);
+        timer = millis();
+    }
+    ubidots.loop();
+}
+
 void loop() {
     // DHT Sensor Readings
-    sensors_event_t event;
     // Get temperature event and print its value.
     dht.temperature().getEvent(&event);
     Serial.print(F("Temperature: "));
@@ -168,22 +191,6 @@ void loop() {
     } else {
         digitalWrite(LED_humidLim, 0);
     }
-
-    //Ubidots Loop
-    if (!ubidots.connected()) {
-      ubidots.reconnect();
-    }
-    if ((millis() - timer) > PUBLISH_FREQUENCY) { // triggers the routine every 5 second
-        float value = event.relative_humidity;
-        dht.temperature().getEvent(&event);
-        float val = event.temperature;
-        ubidots.add(VARIABLE_LABEL, value); // Insert your variable Labels and the value to be sent
-        ubidots.add(VARIABLE_LABEL_TWO, val);
-        ubidots.add(VARIABLE_LABEL_THREE, MQ2_read);
-        ubidots.publish(DEVICE_LABEL);
-        timer = millis();
-    }
-    ubidots.loop();
     
     // MQ2 Sensor Readings
     MQ2_read = analogRead(MQ2_a0);
@@ -202,4 +209,8 @@ void loop() {
 
     // PIR Sensor Readings
 
+    // Ubidots
+    if (WiFi.status() == WL_CONNECTED) {
+        Ubidots_loop();
+    }
 }

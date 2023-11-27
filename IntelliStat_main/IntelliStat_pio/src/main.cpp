@@ -21,6 +21,8 @@
 //#include "UbidotsEsp32Mqtt.h"
 #include <PubSubClient.h>
 
+//Arduino cloud libs
+
 // Sensor Libraries
 #include <DHT.h>
 #include <DHT_U.h>
@@ -39,11 +41,11 @@ const char *WIFI_SSID = "Andromeda";
 const char *WIFI_PASS = "andromeda";
 
 //HiveMQ
-const char *mqtt_server_url = "e01d7d7eb0fb4e1eaeedd5f984200f0d.s1.eu.hivemq.cloud";
+const char *mqtt_server_url = "broker.emqx.io";
 const char *hiveMQ_API_tok = "eyJraWQiOiIwOWZlZDNlZS03ZTgzLTRmZWEtOWRkYy1lMjNkYzllNjJmYmYiLCJhbGciOiJSUzI1NiJ9.eyJuYW1lIjoiaW50ZWxsaXN0YXRFU1AzMiIsInN1YiI6InFtN2VuZSIsImlzcyI6ImhpdmVtcS1jbG91ZCIsImF1ZCI6WyJ3b29sLWNhcmRlciJdLCJpYXQiOjE2OTk4OTc0NDAsImV4cCI6MTcwMDUwMjI0MCwicm9sZXMiOlsid3JpdGUvYWxsL3FtN2VuZSIsInJlYWQvYWxsL3FtN2VuZSIsImRlbGV0ZS9hbGwvcW03ZW5lIiwicmVhZC9saXN0TXF0dFBlcm1pc3Npb25zL3FtN2VuZSJdLCJ2ZXJzaW9uIjoiVjEifQ.GbzatcjEkKMbzGflL-E8qJx78AjLNVQ4Vpb1wzqoGGaQ6TySIILQ-dTbpHgyxDslMlMmdE6bflPmwAGDW0W0LOxD5Z2HNEjCPeSm7f6qQgtrQzCMmOa5C7whJLbNd8GGo27Z1HbuY8P4_XmzbLOPyL_Cbly6IC8Q5VTWqCy8jtUO1rnPID2AZwF-cw3_C-ggdAdrpgiJbzFYj3DDcSm8dvsQ-wHTLrjvAIdIcr-S7sfSOV0PNYDsYy_v2zuSEKpzS0AWPy7loWhq7f4cAeDTONE-t-hnGINaRCn6QRyuz6XdkBAOwqPYQc6BTWa7AhcDvnAcxdybnG9wdlrohasxzw";
 const char *mqtt_username = "Intellistat";
 const char *mqtt_password = "IntellistatESP32";
-const int mqtt_port = 8883;
+const int mqtt_port = 1883;
 
 // Define Network Objects
 // Define MQTT object
@@ -90,12 +92,15 @@ const int LED_humidLim = 12; //Humidity Warning LED
 const int LED_tempWarn = 14; //Temperature Warning LED
 //const int buzzer_1_pin = 27; //Buzzer Pin
 const int calib_switch = 25; //Calibration Enable Switch
+const int fan_enable = 18; //Fan Pin
+const int LED_status = 4; //Status LED
+const int LED_const = 15; //Constant LED
 
-const int pot_test = 36;
 // Define global variables
 unsigned long timer;
 float MQ2_read;
 float MQ2_A0_raw;
+int fanTime;
 
 // Define callback function (for use with MQTT)
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -121,8 +126,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 void LED_Busy() {
     digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(LED_status, HIGH);
     delay(250);
     digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_status, LOW);
     delay(250);
 }
 
@@ -234,6 +241,7 @@ void MQ_calibration() {
 }
 
 void setup() {
+    digitalWrite(LED_const, HIGH);
     // Serial Setup
     Serial.begin(115200);
     
@@ -249,6 +257,9 @@ void setup() {
     pinMode(LED_humidLim, OUTPUT);
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(LED_tempWarn, OUTPUT);
+    pinMode(fan_enable, OUTPUT);
+    pinMode(LED_status, OUTPUT);
+    pinMode(LED_const, OUTPUT);
     //pinMode(buzzer_1_pin, OUTPUT);
     //ledcAttachPin(buzzer_1_pin, 0);
     
@@ -294,6 +305,10 @@ void setup() {
     }
     //MQ2.serialDebug(true); 
     digitalWrite(LED_BUILTIN, HIGH);
+    digitalWrite(LED_MQ2Warn, HIGH);
+    digitalWrite(LED_humidLim, HIGH);
+    digitalWrite(LED_tempWarn, HIGH);
+    digitalWrite(LED_status, HIGH);
     Serial.println("Sensors ready!");
     delay(1000);
 
@@ -304,29 +319,46 @@ void setup() {
     client.setServer(mqtt_server_url, mqtt_port);
     client.setCallback(callback);
 
+
 }
 
 void loop() {
+    digitalWrite(LED_const, HIGH);
+    digitalWrite(LED_status, HIGH);
+
+    // Fan Control
+    // fanTime = millis();
+    // if (fanTime > 60000) {
+    //     digitalWrite(fan_enable, HIGH);
+    //     fanTime = 0;
+    // }
     // DHT Sensor Readings
     // Get temperature event and print its value.
     dht.temperature().getEvent(&event);
     float temp = event.temperature;
-    Serial.print(F("Temperature: "));
-    Serial.print(temp);
-    Serial.println(F("°C"));
+    // Serial.print(F("Temperature: "));
+    // Serial.print(temp);
+    // Serial.println(F("°C"));
     // Get humidity event and print its value.
     dht.humidity().getEvent(&event);
     float humid = event.relative_humidity;
-    Serial.print(F("Humidity: "));
-    Serial.print(humid);
-    Serial.println(F("%"));
+    // Serial.print(F("Humidity: "));
+    // Serial.print(humid);
+    // Serial.println(F("%"));
 
     // Humid Limit Warning LED
-    if (event.relative_humidity > 75) {
+    if (humid > 75) {
         digitalWrite(LED_humidLim, HIGH);
         buzzer_warning_01();
     } else {
         digitalWrite(LED_humidLim, LOW);
+    }
+
+    if (temp > 45) {
+        digitalWrite(LED_tempWarn, HIGH);
+        buzzer_warning_01();
+    } else {
+        digitalWrite(LED_tempWarn, LOW);
     }
     // MQ2 Sensor Readings
     MQ2.update(); // Update data, the esp32 will read the voltage from the analog pin
@@ -335,47 +367,48 @@ void loop() {
     Serial.print(" ppm\t\n");
     MQ2.serialDebug(); // Will print the table on the serial port
     delay(500); //Sampling frequency
-    MQ2_A0_raw = analogRead(MQ2_a0);
+    MQ2_A0_raw = analogRead(Pin);
     //Serial.print("MQ2 A0 RAW: "); Serial.print(MQ2_A0_raw); Serial.print("\n");
     
-    //Serial.print("MQ2 A0 Voltage: "); Serial.print(MQ2.getVoltage(true)); Serial.print("\n"); 
+    Serial.print("MQ2 A0 Voltage: "); Serial.print(MQ2.getVoltage(true)); Serial.print("\n"); 
     // This command will read the voltage at the analog pin of the sensor.
     
     // Gas Warning LED
-    if (MQ2_read > 1000) {
+    if (MQ2_A0_raw > 500) {
         digitalWrite(LED_MQ2Warn, HIGH);
         buzzer_warning_01();
     } else {
         digitalWrite(LED_MQ2Warn, LOW);
     }
+    Serial.print("MQ2 A0 RAW: "); Serial.print(MQ2_A0_raw); Serial.print("\n");
     
     // Light Sensor Readings
+    digitalWrite(fan_enable, HIGH);
 
     // Ubidots
     if (WiFi.status() == WL_CONNECTED) {
         //Ubidots_loop();
     }
 
-    // MQTT
-    // if (!client.connected()) {
-    //     mqtt_reconnect();
-    // }
-    //client.loop();
-    
-    String payload = "test_iot_esp32_intellistat";
-    publishMessage(dht11_humid_topic,String(humid),true);    
-    publishMessage(dht11_temp_topic,String(temp),true);
-    //Pub Payload
-
-      unsigned long now = millis();
-    if (now - lastMsg > 2000) {
-        lastMsg = now;
-        ++value;
-        snprintf (msg, MSG_BUFFER_SIZE, "hello world #%ld", value);
-        Serial.print("Publish message: ");
-        Serial.println(msg);
-        client.publish("outTopic", msg);
+    //MQTT
+    if (!client.connected()) {
+        mqtt_reconnect();
     }
+    client.loop();
     
-    Serial.println("Looping...");
+    // String payload = "test_iot_esp32_intellistat";
+    // publishMessage(dht11_humid_topic,String(humid),true);    
+    // publishMessage(dht11_temp_topic,String(temp),true);
+    // //Pub Payload
+
+    //   unsigned long now = millis();
+    // if (now - lastMsg > 2000) {
+    //     lastMsg = now;
+    //     ++value;
+    //     snprintf (msg, MSG_BUFFER_SIZE, "hello world #%ld", value);
+    //     Serial.print("Publish message: ");
+    //     Serial.println(msg);
+    //     client.publish("outTopic", msg);
+    // }
+    
 }

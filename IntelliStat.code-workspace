@@ -8,5 +8,7 @@
 			"path": "IntelliStat_main/IntelliStat_pio"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "IntelliStat"
+	}
 }

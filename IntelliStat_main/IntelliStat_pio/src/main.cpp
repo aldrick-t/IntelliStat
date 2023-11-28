@@ -5,10 +5,10 @@
  * 
  * Main program code for ESP32 running on Arduino Framework
  * Developed by:
- * Aldrick Tadeo, https://github.com/aldrick-t/
- * Sebastian Colin,
- * Chimali Nava,
- * Andrea Medina,
+ * Aldrick T, https://github.com/aldrick-t/
+ * Sebastian C,
+ * Chimali N,
+ * Andrea M,
  * 
  *
  * ****************************************/
@@ -296,10 +296,10 @@ void setup() {
     pinMode(MQ2_d0, INPUT);
 
     //Startup Sequence
-    Serial.println("=============================================")
+    Serial.println("=============================================");
     Serial.println("IntelliStat v1.1");
     Serial.println("Initializing...");
-    Serial.println("=============================================")
+    Serial.println("=============================================");
 
 
     //Sensor Startup

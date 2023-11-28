@@ -1,3 +1,4 @@
+
 /******************************************
  *
  * IntelliStat
@@ -11,19 +12,20 @@
  * 
  *
  * ****************************************/
-// Basic Libraries
+// Basic Libs
 #include <Arduino.h>
 #include <WiFi.h>
-//#include <WiFiClient.h>
 #include <Buzzer.h>
+//#include <WiFiClient.h>
 
-// Ubidots / MQTT Libraries
+// Ubidots / MQTT Libs
 //#include "UbidotsEsp32Mqtt.h"
 #include <PubSubClient.h>
 
-//Arduino cloud libs
+//Arduino cloud Libs
+#include "thingProperties.h"
 
-// Sensor Libraries
+// Sensor Libs
 #include <DHT.h>
 #include <DHT_U.h>
 #include <MQUnifiedsensor.h>
@@ -36,7 +38,8 @@ const char *VARIABLE_LABEL = "humid"; // Variable label to which data will be pu
 const char *VARIABLE_LABEL_TWO = "temp";
 const char *VARIABLE_LABEL_THREE = "MQ2";
 const int PUBLISH_FREQUENCY = 5000; // Update rate in milliseconds
-// WiFi
+
+// WiFi (non-ArduinoCloud)
 const char *WIFI_SSID = "Andromeda";
 const char *WIFI_PASS = "andromeda";
 
@@ -52,11 +55,9 @@ const int mqtt_port = 1883;
 WiFiClient espClient;
 PubSubClient client(espClient);
 unsigned long lastMsg = 0;
-
 #define MSG_BUFFER_SIZE	(50)
 char msg[MSG_BUFFER_SIZE];
 int value = 0;
-
 const char* dht11_temp_topic= "temp";
 const char* dht11_humid_topic= "humid";
 const char* mq2_topic= "mq2";
@@ -90,7 +91,6 @@ const int MQ2_d0 = 26; //MQ2 D0
 const int LED_MQ2Warn = 13; //MQ2 Warning LED
 const int LED_humidLim = 12; //Humidity Warning LED
 const int LED_tempWarn = 14; //Temperature Warning LED
-//const int buzzer_1_pin = 27; //Buzzer Pin
 const int calib_switch = 25; //Calibration Enable Switch
 const int fan_enable = 18; //Fan Pin
 const int LED_status = 4; //Status LED
@@ -122,7 +122,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 
 }
-
 
 void LED_Busy() {
     digitalWrite(LED_BUILTIN, HIGH);
@@ -241,16 +240,19 @@ void MQ_calibration() {
 }
 
 void setup() {
-    digitalWrite(LED_const, HIGH);
     // Serial Setup
+    // Initialize serial and wait for port to open:
     Serial.begin(115200);
+    // This delay gives the chance to wait for a Serial Monitor without blocking if none is found
+    delay(1500); 
     
+    //Board Status LED
+    digitalWrite(LED_const, HIGH);
+
     // Time Setup
     timer = millis();
 
     // Pin Setup
-
-
     //LED / User Interface Pins
     pinMode(calib_switch, INPUT);
     pinMode(LED_MQ2Warn, OUTPUT);
@@ -294,8 +296,10 @@ void setup() {
     pinMode(MQ2_d0, INPUT);
 
     //Startup Sequence
-    Serial.println("IntelliStat v0.1");
+    Serial.println("=============================================")
+    Serial.println("IntelliStat v1.1");
     Serial.println("Initializing...");
+    Serial.println("=============================================")
 
 
     //Sensor Startup
@@ -309,47 +313,63 @@ void setup() {
     digitalWrite(LED_humidLim, HIGH);
     digitalWrite(LED_tempWarn, HIGH);
     digitalWrite(LED_status, HIGH);
+    digitalWrite(fan_enable, HIGH);
     Serial.println("Sensors ready!");
     delay(1000);
 
     // WiFi Setup
-    WiFi_connect(WIFI_SSID, WIFI_PASS);
+    //WiFi_connect(WIFI_SSID, WIFI_PASS);
+    //Arduino Cloud Setup
+    // Defined in thingProperties.h
+    initProperties();
+
+    // Connect to Arduino IoT Cloud
+    ArduinoCloud.begin(ArduinoIoTPreferredConnection);
+    
+    /*
+        The following function allows you to obtain more information
+        related to the state of network and IoT Cloud connection and errors
+        the higher number the more granular information you’ll get.
+        The default is 0 (only errors).
+        Maximum is 4
+    */
+    setDebugMessageLevel(4);
+    ArduinoCloud.printDebugInfo();
+    ArduinoCloud.update();
+    
 
     // MQTT Setup
     client.setServer(mqtt_server_url, mqtt_port);
     client.setCallback(callback);
-
-
 }
 
 void loop() {
+    ArduinoCloud.update();
     digitalWrite(LED_const, HIGH);
     digitalWrite(LED_status, HIGH);
 
     // Fan Control
-    // fanTime = millis();
-    // if (fanTime > 60000) {
-    //     digitalWrite(fan_enable, HIGH);
-    //     fanTime = 0;
-    // }
+    fanTime = millis();
+    if (fanTime > 120000 && fan_enable == LOW) {
+        digitalWrite(fan_enable, HIGH);
+        fanTime = 0;
+    }
+    else if (fanTime > 60000 && fan_enable == HIGH) {
+        digitalWrite(fan_enable, LOW);
+        fanTime = 0;
+    }
     // DHT Sensor Readings
     // Get temperature event and print its value.
     dht.temperature().getEvent(&event);
-    float temp = event.temperature;
-    // Serial.print(F("Temperature: "));
-    // Serial.print(temp);
-    // Serial.println(F("°C"));
+    temp = event.temperature;
     // Get humidity event and print its value.
     dht.humidity().getEvent(&event);
-    float humid = event.relative_humidity;
-    // Serial.print(F("Humidity: "));
-    // Serial.print(humid);
-    // Serial.println(F("%"));
+    humid = event.relative_humidity;
 
     // Humid Limit Warning LED
     if (humid > 75) {
         digitalWrite(LED_humidLim, HIGH);
-        buzzer_warning_01();
+        //buzzer_warning_01();
     } else {
         digitalWrite(LED_humidLim, LOW);
     }
@@ -363,52 +383,55 @@ void loop() {
     // MQ2 Sensor Readings
     MQ2.update(); // Update data, the esp32 will read the voltage from the analog pin
     MQ2_read = MQ2.readSensor(); // Sensor will read PPM concentration using the model, a and b values set previously or from the setup
-    Serial.print("LPG: "); Serial.print(MQ2_read);
-    Serial.print(" ppm\t\n");
-    MQ2.serialDebug(); // Will print the table on the serial port
     delay(500); //Sampling frequency
     MQ2_A0_raw = analogRead(Pin);
-    //Serial.print("MQ2 A0 RAW: "); Serial.print(MQ2_A0_raw); Serial.print("\n");
-    
-    Serial.print("MQ2 A0 Voltage: "); Serial.print(MQ2.getVoltage(true)); Serial.print("\n"); 
-    // This command will read the voltage at the analog pin of the sensor.
+    mQ2 = MQ2_read; 
     
     // Gas Warning LED
     if (MQ2_A0_raw > 500) {
         digitalWrite(LED_MQ2Warn, HIGH);
         buzzer_warning_01();
+        digitalWrite(fan_enable, HIGH);
     } else {
         digitalWrite(LED_MQ2Warn, LOW);
+        digitalWrite(fan_enable, LOW);
     }
-    Serial.print("MQ2 A0 RAW: "); Serial.print(MQ2_A0_raw); Serial.print("\n");
     
     // Light Sensor Readings
-    digitalWrite(fan_enable, HIGH);
 
     // Ubidots
     if (WiFi.status() == WL_CONNECTED) {
         //Ubidots_loop();
     }
 
-    //MQTT
-    if (!client.connected()) {
-        mqtt_reconnect();
-    }
-    client.loop();
+    // MQTT
+    // if (!client.connected()) {
+    //     mqtt_reconnect();
+    // }
+    // client.loop();
     
     // String payload = "test_iot_esp32_intellistat";
     // publishMessage(dht11_humid_topic,String(humid),true);    
     // publishMessage(dht11_temp_topic,String(temp),true);
     // //Pub Payload
 
-    //   unsigned long now = millis();
-    // if (now - lastMsg > 2000) {
-    //     lastMsg = now;
-    //     ++value;
-    //     snprintf (msg, MSG_BUFFER_SIZE, "hello world #%ld", value);
-    //     Serial.print("Publish message: ");
-    //     Serial.println(msg);
-    //     client.publish("outTopic", msg);
-    // }
+
+    //*******SERIAL DEBUG OUTPUT**********//
+    // uncomment to enable serial debug output.
+
+    // This command will read the voltage at the analog pin of the sensor.
+    //Serial.print("MQ2 A0 Voltage: "); Serial.print(MQ2.getVoltage(true)); Serial.print("\n"); 
+    //Serial.print("MQ2 A0 RAW: "); Serial.print(MQ2_A0_raw); Serial.print("\n");
+    // Serial.print(F("Temperature: "));
+    // Serial.print(temp);
+    // Serial.println(F("°C"));
+    // Serial.print(F("Humidity: "));
+    // Serial.print(humid);
+    // Serial.println(F("%"));
+    // Serial.print("LPG: "); Serial.print(MQ2_read);
+    // Serial.print(" ppm\t\n");
+    // MQ2.serialDebug(); // Will print the table on the serial port
+
+    //*******SERIAL DEBUG OUTPUT**********//
     
 }

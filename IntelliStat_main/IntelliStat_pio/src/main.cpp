@@ -23,7 +23,7 @@
 #include <PubSubClient.h>
 
 //Arduino cloud Libs
-#include "thingProperties.h"
+#include "thingProperties.h" //ignore errors and upload from Arduino IDE or Cloud Editor. PIO does not support this library.
 
 // Sensor Libs
 #include <DHT.h>

@@ -347,7 +347,7 @@ void loop() {
     ArduinoCloud.update();
     digitalWrite(LED_const, HIGH);
     digitalWrite(LED_status, HIGH);
-
+    
     // DHT Sensor Readings
     // Get temperature event and print its value.
     dht.temperature().getEvent(&event);

@@ -100,7 +100,7 @@ const int LED_const = 15; //Constant LED
 unsigned long timer;
 float MQ2_read;
 float MQ2_A0_raw;
-int fanTime;
+unsigned long fanTime;
 
 // Define callback function (for use with MQTT)
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -348,16 +348,6 @@ void loop() {
     digitalWrite(LED_const, HIGH);
     digitalWrite(LED_status, HIGH);
 
-    // Fan Control
-    fanTime = millis();
-    if (fanTime > 120000 && fan_enable == LOW) {
-        digitalWrite(fan_enable, HIGH);
-        fanTime = 0;
-    }
-    else if (fanTime > 60000 && fan_enable == HIGH) {
-        digitalWrite(fan_enable, LOW);
-        fanTime = 0;
-    }
     // DHT Sensor Readings
     // Get temperature event and print its value.
     dht.temperature().getEvent(&event);
@@ -369,16 +359,20 @@ void loop() {
     // Humid Limit Warning LED
     if (humid > 75) {
         digitalWrite(LED_humidLim, HIGH);
+        //digitalWrite(fan_enable, HIGH);
         //buzzer_warning_01();
     } else {
         digitalWrite(LED_humidLim, LOW);
+        //digitalWrite(fan_enable, LOW);
     }
 
     if (temp > 45) {
         digitalWrite(LED_tempWarn, HIGH);
+        //digitalWrite(fan_enable, HIGH);
         buzzer_warning_01();
     } else {
         digitalWrite(LED_tempWarn, LOW);
+        //digitalWrite(fan_enable, LOW);
     }
     // MQ2 Sensor Readings
     MQ2.update(); // Update data, the esp32 will read the voltage from the analog pin
@@ -391,20 +385,34 @@ void loop() {
     if (MQ2_A0_raw > 500) {
         digitalWrite(LED_MQ2Warn, HIGH);
         buzzer_warning_01();
-        digitalWrite(fan_enable, HIGH);
+        //digitalWrite(fan_enable, HIGH);
     } else {
         digitalWrite(LED_MQ2Warn, LOW);
-        digitalWrite(fan_enable, LOW);
+        //digitalWrite(fan_enable, LOW);
     }
     
-    // Light Sensor Readings
+    // Fan enable const
+    digitalWrite(fan_enable, HIGH);
 
     // Ubidots
     if (WiFi.status() == WL_CONNECTED) {
         //Ubidots_loop();
     }
 
-    // MQTT
+    // Fan Control  =========================================
+    // timer = millis();
+
+    // if (timer - fanTime >= 120000 && fan_enable == LOW) {
+    //     digitalWrite(fan_enable, HIGH);
+    //     fanTime = timer;
+    // }
+    // else if (timer - fanTime > 60000 && fan_enable == HIGH) {
+    //     digitalWrite(fan_enable, LOW);
+    //     fanTime = timer;
+    // }
+    // Fan Control  =========================================
+
+    // MQTT =================================================
     // if (!client.connected()) {
     //     mqtt_reconnect();
     // }
@@ -414,7 +422,7 @@ void loop() {
     // publishMessage(dht11_humid_topic,String(humid),true);    
     // publishMessage(dht11_temp_topic,String(temp),true);
     // //Pub Payload
-
+    // MQTT =================================================
 
     //*******SERIAL DEBUG OUTPUT**********//
     // uncomment to enable serial debug output.
@@ -430,6 +438,9 @@ void loop() {
     // Serial.println(F("%"));
     // Serial.print("LPG: "); Serial.print(MQ2_read);
     // Serial.print(" ppm\t\n");
+    //Serial.print("FAN_TIME:"); Serial.print(fanTime); Serial.print("\n");
+    //Serial.print("TIMER   :"); Serial.print(timer); Serial.print("\n");
+    //Serial.print("FAN_EN  :"); Serial.print(fan_enable); Serial.print("\n");
     // MQ2.serialDebug(); // Will print the table on the serial port
 
     //*******SERIAL DEBUG OUTPUT**********//
